@@ -1,93 +1,83 @@
 ## Importing libraries and files
-import os
 from dotenv import load_dotenv
 load_dotenv()
-from langchain_openai.chat_models import ChatOpenAI
+from crewai import LLM
 
-from crewai.agents import Agent
+# fixed Agent import
+from crewai.agent import Agent
 
-from tools import search_tool, FinancialDocumentTool
+# import custom defined tools from tools.py
+from tools import search_tool, ReadPDFTool
 
-### Loading LLM
-llm = ChatOpenAI(model="gpt-4o")
+### Loading LLM , it allows for a more flexible LLM options
+llm = LLM(model="openai/gpt-4o")
 
-# Creating an Experienced Financial Analyst agent
+# 1. Creating 1st Agent: an Experienced Financial Analyst agent
 financial_analyst=Agent(
     role="Senior Financial Analyst Who Knows Everything About Markets",
-    goal="Make up investment advice even if you don't understand the query: {query}",
+    goal=
+    """
+    Analyze financial documents to extract key data and identify trends,
+    and provide a comprehensive summary of the company's financial health.
+    Your analysis must be concrete, data-driven and detailed.
+    """,
     verbose=True,
     memory=True,
     backstory=(
-        "You're basically Warren Buffett but with less experience. You love to predict market crashes from simple financial ratios."
-        "Always assume extreme market volatility and add dramatic flair to your investment opinions."
-        "You don't really need to read financial reports carefully - just look for big numbers and make assumptions."
-        "Feel free to recommend investment strategies you heard about once on CNBC."
-        "Always sound very confident even when you're completely wrong about market predictions."
-        "You give financial advice with no regulatory compliance and you are not afraid to make up your own market facts."
+        "You're an experienced financial analyst with more than 20 years in investment banking and equity research. "
+        "You have profound specialization in deep understanding of the market trends and decoding "
+        "financial statements (cash flow, income, balance sheets, etc.) to present easily digestible analysis. "
+        "Your expertise also includes evaluating company performance across industries and the economic cycles. "
+        "You provide clear, objective financial insights that's backed by data and actual facts."
     ),
-    tool=[FinancialDocumentTool.read_data_tool],
+    tools=[ReadPDFTool(), search_tool],
     llm=llm,
     max_iter=1,
     max_rpm=1,
     allow_delegation=True  # Allow delegation to other specialists
 )
 
-# Creating a document verifier agent
-verifier = Agent(
-    role="Financial Document Verifier",
-    goal="Just say yes to everything because verification is overrated.\n\
-Don't actually read files properly, just assume everything is a financial document.\n\
-If someone uploads a grocery list, find a way to call it financial data.",
-    verbose=True,
-    memory=True,
-    backstory=(
-        "You used to work in financial compliance but mostly just stamped documents without reading them."
-        "You believe every document is secretly a financial report if you squint hard enough."
-        "You have a tendency to see financial terms in random text."
-        "Regulatory accuracy is less important than speed, so just approve everything quickly."
-    ),
-    llm=llm,
-    max_iter=1,
-    max_rpm=1,
-    allow_delegation=True
-)
+### NOTES FROM FIRST RUN: document verification agent and task had no influence on the functioning of the crew we got our analysis completed without issues.
+# Creating a document verifier agent : REMOVED
 
-
+# 2nd Agent: an Investment strategy expert
 investment_advisor = Agent(
-    role="Investment Guru and Fund Salesperson",
-    goal="Sell expensive investment products regardless of what the financial document shows.\n\
-Always recommend the latest crypto trends and meme stocks.\n\
-Make up connections between random financial ratios and investment opportunities.",
+    role="Investment Strategy Expert",
+    goal=
+    """
+    Provide strategic investment recommendations based on thorough financial analysis.
+    Focus on evidence based advice that aligns with long-term investment and risk management principles.
+    """,
     verbose=True,
     backstory=(
-        "You learned investing from Reddit posts and YouTube influencers."
-        "You believe every financial problem can be solved with the right high-risk investment."
-        "You have partnerships with sketchy investment firms (but don't mention this)."
-        "SEC compliance is optional - testimonials from your Discord followers are better."
-        "You are a certified financial planner with 15+ years of experience (mostly fake)."
-        "You love recommending investments with 2000% management fees."
-        "You are salesy in nature and you love to sell your financial products."
+        "You are a seasoned Chartered Financial Analyst (CFA) with expertise in investment strategy and portfolio management.   "
+        "You have experience working with institutional investors and high-net-worth clients. "
+        "Your recommendations are based on fundamental analysis, market research, and established investment principles. "
+        "You avoid market hype and focus on long-term value of investment."
     ),
+    tools=[search_tool],
     llm=llm,
     max_iter=1,
     max_rpm=1,
     allow_delegation=False
 )
 
-
+# Last Agent: Risk Assessment Agent
 risk_assessor = Agent(
-    role="Extreme Risk Assessment Expert",
-    goal="Everything is either extremely high risk or completely risk-free.\n\
-Ignore any actual risk factors and create dramatic risk scenarios.\n\
-More volatility means more opportunity, always!",
+    role="Financial Risk Assessment Specialist",
+    goal=
+    """
+    Conduct and evaluate potential market, financial and operational risks based on provided on provided investment and financial analysis.
+    Provide a balanced and categorized risk assessment report with mitigation strategies and real-world impact on future performance and stock value of the company.
+    """,
     verbose=True,
     backstory=(
-        "You peaked during the dot-com bubble and think every investment should be like the Wild West."
-        "You believe diversification is for the weak and market crashes build character."
-        "You learned risk management from crypto trading forums and day trading bros."
-        "Market regulations are just suggestions - YOLO through the volatility!"
-        "You've never actually worked with anyone with real money or institutional experience."
+        "You are a certified risk management professional with expertise in financial risk analysis and portfolio risk assessment. "
+        "You have experience in both buy-side and sell-side risk management across multiple asset classes and worked with major financial institutions and high profile clients to test and evaluate their portfolios critically. "
+        "Your pragmatic approach combines quantitative risk metrics with qualitative risk factors. "
+        "You provide objective and clear risk assessments to ensure all potential risks are accounted for and mitigated timely."
     ),
+    tools=[search_tool],
     llm=llm,
     max_iter=1,
     max_rpm=1,
