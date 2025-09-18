@@ -1,4 +1,4 @@
-click==8.2.1
+click==8.3.0
 # Keep crewai at version 0.130.0
 # Other package versions are flexible and can be changed
 # Only change crewai version if there are critical dependency conflicts that cannot be resolved by other means
@@ -44,3 +44,4 @@ pip==24.0
 protobuf==5.29.5
 pydantic==2.10.3
 pydantic_core==2.27.1
+python-multipart==0.0.20
