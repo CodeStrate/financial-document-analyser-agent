@@ -1,10 +1,10 @@
-# Financial Document Analyzer Agent - Base App Debugged
+# Financial Document Analyzer Agent - Base App (Enhanced)
 
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 
-This project is an AI-powered system that analyzes financial documents (such as quarterly earnings reports) to provide a comprehensive summary, investment advice, and a risk assessment. It uses **CrewAI** to orchestrate a team of specialized AI agents and a **FastAPI** server for interaction.
+This project is an AI-powered system that analyzes financial documents (such as quarterly earnings reports) to provide a comprehensive summary, investment advice, and a risk assessment. It uses **CrewAI** to orchestrate a team of specialized AI agents, **FastAPI** for API interaction, and a **Redis + Celery job queue** for scalable asynchronous processing.
 
-This repository is the improved and stable version of the base assignment codebase, with bugs fixed and prompts refined without bonus features.
+This repository is the improved and stable version of the base assignment codebase, with bugs fixed, prompts refined, and extended with concurrency features.
 
 ---
 
@@ -22,29 +22,38 @@ This repository is the improved and stable version of the base assignment codeba
 ## Key Features
 
 * **AI Agent Orchestration**: CrewAI manages specialized agents for document analysis, investment advice, and risk assessment.
+* **Summarizer Agent**: Aggregates results from all previous agents into one consolidated summary.
 * **Robust PDF Parsing**: Custom CrewAI tool for extracting text from PDF documents.
-* **RESTful API**: FastAPI-based interface for document submission and result retrieval.
+* **Job Queue with Redis + Celery**: Long-running tasks are executed asynchronously, allowing concurrent analysis jobs and improved scalability.
+* **RESTful API**: FastAPI-based endpoints for job submission and status/result retrieval.
 
 ---
 
 ## Bugs Squashed
 
-During development, several issues were identified and fixed:
+During development, several issues were identified and resolved:
 
-* **Dependency Conflicts**: `requirements.txt` had too many versioning issues especially with `opentelemetry`, `google` packages and `onnxruntime`
-    - Fix: Made sure to use appropriate package versions w.r.t. `crewai==1.30.0`.
-* **Broken Custom Tools**: Fixed PDF parsing tool by properly inheriting from `crewai.tools.BaseTool` for proper format, implementing `_run` method for tool execution and integrating `PyPDFium2Loader` from `langchain-community`. As well as fixed `SerperDevTool` import (was `serper_dev_tool`)
-* **LLM Initialization**: Corrected agent LLM initialization (llm=llm) with `LLM` class from `crewai` (so we can easily switch AI providers as well as models) and environment variable configuration. Also tools were passed incorrectly to the agents, that was fixed. (was `tools=` not `tool=`)
-* **Crew Running Problems**: `run_crew` in `main` was not passing all agents and tasks in the workflow also it didn't get file_path in `kickoff()`. Fixed by adding them.
+* **Dependency Conflicts**: `requirements.txt` had severe version mismatches (notably with `opentelemetry`, `google` packages, and `onnxruntime`).
 
-### Inefficient Prompting Fixes and Removal of Redundant Code
-* **Problem 1** : The Agents' role, backstory and goals were sarcastic jokes or satire at worst. It lead to hallucination at best and undesirable output at worst.
-  - Fix : The role, goals and backstory were properly defined to position each agent as a serious professional. So now each Agent carries a persona or a character it plays that leads to quality output.
+  * **Fix**: Adjusted versions compatible with `crewai==1.30.0`.
 
-* **Problem 2** : The tasks were also poorly written, like hyperbolic jokes with no clear directive, the task assignment also needed fixing, as it was wrong. Also no context sharing between agents so no agent had knowledge towards its task from the previous.
-  - Fix : Defined structured tasks with a clear output format in mind while passing the output from one task to the next. eg. `financial_analysis_task` forms the context for `investment_analysis_task` and the both tasks formed the context for the `risk_assessment_task` for the best response.
- 
-* **Redundant Code Removed** : `Verifier` Agent and its subsequent task was removed from the codebase as it wasn't influencing the Agent's response and it's objective was already fulfilled by the `financial_analyst` Agent and task. It wasn't logically to add this overhead which might have caused confusion for the LLM. Also tools for `investment_analysis` and `risk_assessment` were also removed since they weren't doing anything extra that the Agents could not on their own reasoning and supplied WebSearch tools.
+* **Broken Custom Tools**: PDF parser was incorrectly implemented.
+
+  * **Fix**: Proper inheritance from `crewai.tools.BaseTool`, correct `_run` method, and integration of `PyPDFium2Loader` from `langchain-community`. Also fixed incorrect `SerperDevTool` import.
+
+* **LLM Initialization Errors**: Agents were not receiving models correctly. Also Agent import was wrong its `crewai.agent` not `crewai.agents`.
+
+  * **Fix**: Used `LLM` class from `crewai` with proper env var configuration; fixed `tools=` vs. `tool=` bug.
+
+* **Workflow Execution Issues**: `run_crew` was not properly passing agents/tasks, and `kickoff()` lacked file\_path handling.
+
+  * **Fix**: Ensured full workflow with contextual passing across agents.
+
+* **Prompt & Task Quality**: Agents’ roles, goals, and tasks were previously written as sarcastic jokes, leading to hallucinations and poor outputs.
+
+  * **Fix**: Rewritten as professional, structured roles with explicit objectives. Outputs now cascade logically (financial → investment → risk).
+
+* **Redundant Logic Removed**: `Verifier` agent and unused tools were eliminated since their responsibilities overlapped with other agents, reducing unnecessary complexity.
 
 ---
 
@@ -54,6 +63,7 @@ During development, several issues were identified and fixed:
 * **LLM**: OpenAI GPT-4o (or any compatible model)
 * **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/)
 * **PDF Parsing**: [PyPDFium2](https://pypdfium2.readthedocs.io/en/stable/)
+* **Job Queue**: Redis + Celery
 
 ---
 
@@ -63,55 +73,84 @@ During development, several issues were identified and fixed:
 
 * Python 3.13+
 * Git
-* OpenAI API Key
+* OpenAI (or Gemini, Anthropic) API Key - depending on what you want to use.
+* Serper API Key
+* Redis Server
 
 ---
 
 ### Steps
 
-1. Clone the repository:
+1. **Clone the repository**
 
-   ```powershell
+   ```bash
    git clone https://github.com/CodeStrate/financial-document-analyser-agent.git
    cd financial-document-analyser-agent
    ```
 
-2. Create and activate a virtual environment:
+2. **Create and activate a virtual environment**
 
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-
-   or in Linux
    ```bash
    python3.13 -m venv venv
-   source venv/bin/activate
+   source venv/bin/activate   # Linux / macOS
+   .\venv\Scripts\activate    # Windows PowerShell
    ```
 
-3. Install dependencies:
+3. **Install dependencies**
 
-   ```powershell
+   ```bash
    pip install -r requirements.txt
    ```
 
-4. Configure environment variables:
+4. **Install Redis**
+
+   * **Ubuntu/Debian**
+
+     ```bash
+     sudo apt update
+     sudo apt install redis-server
+     sudo systemctl enable redis-server
+     sudo systemctl start redis-server
+     ```
+   * **macOS (Homebrew)**
+
+     ```bash
+     brew install redis
+     brew services start redis
+     ```
+   * **Windows**
+     Download from [Memurai](https://www.memurai.com/) or [Redis for Windows port](https://github.com/microsoftarchive/redis/releases).
+     Then run:
+
+     ```powershell
+     redis-server.exe
+     ```
+
+5. **Configure environment variables**
+
    ```env
    OPENAI_API_KEY="sk-..."
    SERPER_API_KEY="a20..."
+   REDIS_URL="redis://localhost:6379/0"
    ```
 
-5. Run the FastAPI server:
+6. **Run the FastAPI server**
 
-   ```powershell
+   ```bash
    python main.py
+   ```
+
+7. **Start the Celery worker**
+
+   ```bash
+   celery -A celery_jobs.analysis_worker worker --loglevel=info --pool=solo --concurrency=1
    ```
 
 ---
 
 ## Usage
 
-Submit a document and check results through the API.
+Submit a document and check job status via API.
 
 ### 1. Submit a document for analysis
 
@@ -119,26 +158,50 @@ Submit a document and check results through the API.
 http POST http://localhost:8000/analyze file@data/quarterly_report.pdf query="Provide a detailed analysis, recommendation, and risk assessment."
 ```
 
+**Response**
+
+```json
+{
+    "status": "success",
+    "message": "Analysis Job created and submitted.",
+    "job_id": "Job_c0b12a64-324c-4fbb-8a22-36e7c2b2f9a4",
+    "file_processed": "quarterly_report.pdf"
+}
+```
+
 ---
 
 ## API Reference
 
-### `POST /analyze`
+### `POST /analyze/`
 
-Uploads a financial document and starts analysis.
+Creates a background analysis job.
 
 **Request Body**:
 
-* `file` (file) – required, PDF file
-* `query` (string) – optional
+* `file` (file, required) – PDF file
+* `query` (string, optional) – custom instruction
 
 **Response**:
+Returns job metadata (see above).
+
+---
+
+### `GET /status/{job_id}`
+
+Retrieve the status and result of a submitted job.
+
+**Response**
 
 ```json
 {
-      "status": "success",
-      "query": "User query",
-      "analysis": "Agent response",
-      "file_processed": "file_name"
+    "job_id": "Job_c0b12a64-324c-4fbb-8a22-36e7c2b2f9a4",
+    "job_status": "completed",
+    "job_created_at": "2025-09-19T10:20:00Z",
+    "job_updated_at": "2025-09-19T10:22:45Z",
+    "job_result": "Overall financials improved with YoY growth...",
+    }
 }
 ```
+
+Would you like me to **keep the new updates in a separate “What’s New” section** at the top (so changes like Redis, Celery, Summarizer Agent stand out immediately), or merge them silently into the existing Key Features / Setup sections like I just did here?
