@@ -130,7 +130,7 @@ Uploads a financial document and starts analysis.
 **Request Body**:
 
 * `file` (file) – required, PDF file
-* `query` (string) – required
+* `query` (string) – optional
 
 **Response**:
 
