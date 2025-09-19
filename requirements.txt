@@ -45,3 +45,5 @@ protobuf==5.29.5
 pydantic==2.10.3
 pydantic_core==2.27.1
 python-multipart==0.0.20
+redis==6.4.0
+celery==5.5.3
