@@ -55,7 +55,7 @@ During development, several issues were identified and resolved:
 
 * **Redundant Logic Removed**: `Verifier` agent and unused tools were eliminated since their responsibilities overlapped with other agents, reducing unnecessary complexity.
 
----
+
 
 ## Technology Stack
 
@@ -65,7 +65,31 @@ During development, several issues were identified and resolved:
 * **PDF Parsing**: [PyPDFium2](https://pypdfium2.readthedocs.io/en/stable/)
 * **Job Queue**: Redis + Celery
 
----
+
+## Job Data Persistence
+
+In addition to Redis for managing background task queues, the system uses **SQLite** as a lightweight relational database to store job metadata and results. This ensures job information is persisted beyond the in-memory lifecycle of Redis and can be queried reliably.
+
+**What gets stored in SQLite**
+Each job entry contains:
+
+* `job_id` (UUID4) – unique identifier for the analysis job
+* `job_status` – current state (`in queue`, `processing`, `completed`, `failed`)
+* `job_created_at` – timestamp when job was created
+* `job_updated_at` – timestamp when job last updated
+* `job_result` – final structured result (analysis, recommendations, risk, summary)
+
+**Why SQLite?**
+
+* Simple setup, no additional infrastructure required
+* Data persists between restarts
+* Portable: the database file (`jobs.db`) can be inspected or migrated easily
+
+**Configuration**
+
+* Database file: `jobs.db` (default, configurable via env variable `JOB_DB_PATH`)
+* Access Layer: Python `sqlite3` module with simple CRUD operations for job records
+
 
 ## Setup and Installation
 
@@ -168,40 +192,71 @@ http POST http://localhost:8000/analyze file@data/quarterly_report.pdf query="Pr
     "file_processed": "quarterly_report.pdf"
 }
 ```
-
 ---
 
 ## API Reference
 
-### `POST /analyze/`
+### `POST /analyze`
 
-Creates a background analysis job.
+Uploads a financial document and queues it for analysis. The job metadata is inserted into the **SQLite database** immediately after submission.
 
 **Request Body**:
 
-* `file` (file, required) – PDF file
-* `query` (string, optional) – custom instruction
+* `file` (file) – required, PDF file
+* `query` (string) – optional, custom analysis request
 
-**Response**:
-Returns job metadata (see above).
+**Success Response (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Analysis Job created and submitted.",
+    "job_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "file_processed": "quarterly_report.pdf"
+}
+```
+
+* `job_id` → UUID4 stored in the SQLite database
+* `file_processed` → original filename
 
 ---
 
 ### `GET /status/{job_id}`
 
-Retrieve the status and result of a submitted job.
+Retrieves the **current status and results** of a specific job. All data is fetched from the **SQLite database**, which is updated by Celery workers as jobs progress.
 
-**Response**
+**Path Parameter**:
+
+* `job_id` (string, `Job_UUID4`) – required
+
+**Response while processing (200 OK):**
+
+```json
+{
+    "job_id": "Job_a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "job_status": "Processing",
+    "job_created_at": "2025-09-19T10:15:30",
+    "job_updated_at": "2025-09-19T10:16:12",
+    "job_result": null
+}
+```
+
+**Response when complete (200 OK):**
 
 ```json
 {
     "job_id": "Job_c0b12a64-324c-4fbb-8a22-36e7c2b2f9a4",
-    "job_status": "completed",
+    "job_status": "Completed",
     "job_created_at": "2025-09-19T10:20:00Z",
     "job_updated_at": "2025-09-19T10:22:45Z",
     "job_result": "Overall financials improved with YoY growth...",
-    }
 }
 ```
 
-Would you like me to **keep the new updates in a separate “What’s New” section** at the top (so changes like Redis, Celery, Summarizer Agent stand out immediately), or merge them silently into the existing Key Features / Setup sections like I just did here?
+**Response if not found (404 Not Found):**
+
+```json
+{
+    "detail": "Job with Job_c0b12a64-324c-4fbb-8a22-36e7c2b2f9a4 doesn't exist."
+}
+```
